@@ -8,6 +8,7 @@ const extensionPath = `scripts/extensions/third-party/${extensionName}`;
 const defaultSettings = {
     enabled: false,
     max_messages: 20,
+    include_latest: false,
     instruction_enabled: true,
 };
 
@@ -42,8 +43,12 @@ function getTimestampPrefix(message) {
 
 function getSourceMessages() {
     const context = getContext();
-    const messages = context.chat
+    let messages = context.chat
         .filter(message => message && !message.is_system && typeof message.mes === 'string' && message.mes.trim().length);
+
+    if (!settings.include_latest && messages.length > 0) {
+        messages = messages.slice(0, -1);
+    }
 
     const maxMessages = Number(settings.max_messages);
     if (!Number.isFinite(maxMessages) || maxMessages <= 0) {
@@ -182,6 +187,13 @@ async function loadSettingsUi() {
         .prop('checked', settings.instruction_enabled)
         .on('click', (event) => {
             settings.instruction_enabled = event.target.checked;
+            saveSettings();
+        });
+
+    $('#chat_timestamps_include_latest')
+        .prop('checked', settings.include_latest)
+        .on('click', (event) => {
+            settings.include_latest = event.target.checked;
             saveSettings();
         });
 

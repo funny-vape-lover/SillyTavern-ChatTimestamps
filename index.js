@@ -8,13 +8,14 @@ const extensionPath = `scripts/extensions/third-party/${extensionName}`;
 const defaultSettings = {
     enabled: false,
     max_messages: 20,
-    include_latest: false,
+    include_latest: true,
     instruction_enabled: true,
+    include_latest_default_migrated: false,
 };
 
 let settings;
 
-const timestampInstruction = 'Timestamp lines like [Timestamp: ...] are metadata about previous chat messages. Use them only to understand timing and sequence. Do not include, imitate, or invent timestamp headers in your own reply unless the user explicitly asks you to write a timestamp.';
+const timestampInstruction = 'Timestamp handling rule: [Timestamp: ...] lines are input-only metadata for understanding when prior messages happened. They are not part of the conversation style. Do not start your reply with a [Timestamp: ...] line, do not invent a current timestamp, and do not copy timestamp headers into your output unless the user explicitly asks for one.';
 
 function saveSettings() {
     getContext().saveSettingsDebounced();
@@ -22,12 +23,21 @@ function saveSettings() {
 
 function loadSettings() {
     settings = extension_settings[extensionName] ?? {};
+    let migrated = false;
     for (const key in defaultSettings) {
         if (settings[key] === undefined) {
             settings[key] = defaultSettings[key];
         }
     }
+    if (!settings.include_latest_default_migrated) {
+        settings.include_latest = true;
+        settings.include_latest_default_migrated = true;
+        migrated = true;
+    }
     extension_settings[extensionName] = settings;
+    if (migrated) {
+        saveSettings();
+    }
 }
 
 function formatMessageTimestamp(message) {
@@ -118,17 +128,22 @@ function injectIntoPromptItems(items, getContent, setContent) {
     }
 }
 
+function appendInstruction(content) {
+    const text = String(content ?? '');
+    if (!shouldInjectInstruction() || text.includes(timestampInstruction)) {
+        return content;
+    }
+    return `${text}\n\n[${timestampInstruction}]`;
+}
+
 function injectTextCompletionInstruction(data) {
     if (!shouldInjectInstruction() || !Array.isArray(data?.finalMesSend) || !data.finalMesSend.length) {
         return;
     }
 
     const target = data.finalMesSend[data.finalMesSend.length - 1];
-    if (!Array.isArray(target.extensionPrompts)) {
-        target.extensionPrompts = [];
-    }
-    if (!target.extensionPrompts.includes(`${timestampInstruction}\n`)) {
-        target.extensionPrompts.unshift(`${timestampInstruction}\n`);
+    if (typeof target?.message === 'string') {
+        target.message = appendInstruction(target.message);
     }
 }
 
@@ -137,39 +152,31 @@ function injectChatCompletionInstruction(data) {
         return;
     }
 
-    const systemMessage = data.chat.find(message => message?.role === 'system' && typeof message.content === 'string');
-    if (systemMessage) {
-        if (!systemMessage.content.includes(timestampInstruction)) {
-            systemMessage.content = `${systemMessage.content}\n\n${timestampInstruction}`;
-        }
-        return;
+    const target = data.chat.findLast(message => typeof message?.content === 'string');
+    if (target) {
+        target.content = appendInstruction(target.content);
     }
-
-    data.chat.unshift({
-        role: 'system',
-        content: timestampInstruction,
-    });
 }
 
 function injectTextCompletionTimestamps(data) {
     if (data?.api === 'openai') {
         return;
     }
-    injectTextCompletionInstruction(data);
     injectIntoPromptItems(
         data?.finalMesSend,
         item => item?.message,
         (item, value) => { item.message = value; },
     );
+    injectTextCompletionInstruction(data);
 }
 
 function injectChatCompletionTimestamps(data) {
-    injectChatCompletionInstruction(data);
     injectIntoPromptItems(
         data?.chat,
         item => typeof item?.content === 'string' ? item.content : null,
         (item, value) => { item.content = value; },
     );
+    injectChatCompletionInstruction(data);
 }
 
 async function loadSettingsUi() {

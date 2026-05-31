@@ -136,8 +136,34 @@ function appendInstruction(content) {
     return `${text}\n\n[${timestampInstruction}]`;
 }
 
+function appendInstructionToNewestTimestampedItem(items, getContent, setContent) {
+    if (!shouldInjectInstruction() || !Array.isArray(items) || !items.length) {
+        return false;
+    }
+
+    for (let index = items.length - 1; index >= 0; index--) {
+        const item = items[index];
+        const content = getContent(item);
+        if (typeof content === 'string' && content.startsWith('[Timestamp: ')) {
+            setContent(item, appendInstruction(content));
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function injectTextCompletionInstruction(data) {
     if (!shouldInjectInstruction() || !Array.isArray(data?.finalMesSend) || !data.finalMesSend.length) {
+        return;
+    }
+
+    const appendedToTimestampedMessage = appendInstructionToNewestTimestampedItem(
+        data.finalMesSend,
+        item => item?.message,
+        (item, value) => { item.message = value; },
+    );
+    if (appendedToTimestampedMessage) {
         return;
     }
 
@@ -149,6 +175,15 @@ function injectTextCompletionInstruction(data) {
 
 function injectChatCompletionInstruction(data) {
     if (!shouldInjectInstruction() || !Array.isArray(data?.chat) || !data.chat.length) {
+        return;
+    }
+
+    const appendedToTimestampedMessage = appendInstructionToNewestTimestampedItem(
+        data.chat,
+        item => typeof item?.content === 'string' ? item.content : null,
+        (item, value) => { item.content = value; },
+    );
+    if (appendedToTimestampedMessage) {
         return;
     }
 

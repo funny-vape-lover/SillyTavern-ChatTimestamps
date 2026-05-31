@@ -1,0 +1,11 @@
+{
+    "display_name": "Chat Timestamps",
+    "loading_order": 20,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "funny-vape-lover",
+    "version": "1.0.0",
+    "homePage": "https://github.com/funny-vape-lover/SillyTavern-ChatTimestamps"
+}

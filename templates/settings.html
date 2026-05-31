@@ -1,0 +1,20 @@
+<div class="chat-timestamps-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Chat Timestamps</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="flex-container flexFlowColumn">
+                <label class="checkbox_label" for="chat_timestamps_enabled" title="Temporarily add source timestamps to normal chat prompts sent to the model. Saved chat messages are not changed.">
+                    <input id="chat_timestamps_enabled" class="checkbox" type="checkbox" />
+                    Send timestamps to model
+                </label>
+                <label for="chat_timestamps_max_messages" title="Only timestamp this many newest in-context chat messages. Use 0 to timestamp every in-context chat message.">
+                    <span>Recent messages to timestamp</span>
+                    <input id="chat_timestamps_max_messages" class="text_pole widthUnset" type="number" min="0" max="999" />
+                </label>
+            </div>
+        </div>
+    </div>
+</div>

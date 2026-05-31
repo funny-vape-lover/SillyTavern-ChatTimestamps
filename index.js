@@ -8,9 +8,12 @@ const extensionPath = `scripts/extensions/third-party/${extensionName}`;
 const defaultSettings = {
     enabled: false,
     max_messages: 20,
+    instruction_enabled: true,
 };
 
 let settings;
+
+const timestampInstruction = 'Timestamp lines like [Timestamp: ...] are metadata about previous chat messages. Use them only to understand timing and sequence. Do not include, imitate, or invent timestamp headers in your own reply unless the user explicitly asks you to write a timestamp.';
 
 function saveSettings() {
     getContext().saveSettingsDebounced();
@@ -68,6 +71,10 @@ function shouldInject() {
     return Boolean(settings?.enabled);
 }
 
+function shouldInjectInstruction() {
+    return shouldInject() && Boolean(settings?.instruction_enabled);
+}
+
 function prefixPromptText(content, sourceMessage) {
     const prefix = getTimestampPrefix(sourceMessage);
     if (!prefix || String(content ?? '').startsWith('[Timestamp: ')) {
@@ -106,10 +113,44 @@ function injectIntoPromptItems(items, getContent, setContent) {
     }
 }
 
+function injectTextCompletionInstruction(data) {
+    if (!shouldInjectInstruction() || !Array.isArray(data?.finalMesSend) || !data.finalMesSend.length) {
+        return;
+    }
+
+    const target = data.finalMesSend[data.finalMesSend.length - 1];
+    if (!Array.isArray(target.extensionPrompts)) {
+        target.extensionPrompts = [];
+    }
+    if (!target.extensionPrompts.includes(`${timestampInstruction}\n`)) {
+        target.extensionPrompts.unshift(`${timestampInstruction}\n`);
+    }
+}
+
+function injectChatCompletionInstruction(data) {
+    if (!shouldInjectInstruction() || !Array.isArray(data?.chat) || !data.chat.length) {
+        return;
+    }
+
+    const systemMessage = data.chat.find(message => message?.role === 'system' && typeof message.content === 'string');
+    if (systemMessage) {
+        if (!systemMessage.content.includes(timestampInstruction)) {
+            systemMessage.content = `${systemMessage.content}\n\n${timestampInstruction}`;
+        }
+        return;
+    }
+
+    data.chat.unshift({
+        role: 'system',
+        content: timestampInstruction,
+    });
+}
+
 function injectTextCompletionTimestamps(data) {
     if (data?.api === 'openai') {
         return;
     }
+    injectTextCompletionInstruction(data);
     injectIntoPromptItems(
         data?.finalMesSend,
         item => item?.message,
@@ -118,6 +159,7 @@ function injectTextCompletionTimestamps(data) {
 }
 
 function injectChatCompletionTimestamps(data) {
+    injectChatCompletionInstruction(data);
     injectIntoPromptItems(
         data?.chat,
         item => typeof item?.content === 'string' ? item.content : null,
@@ -133,6 +175,13 @@ async function loadSettingsUi() {
         .prop('checked', settings.enabled)
         .on('click', (event) => {
             settings.enabled = event.target.checked;
+            saveSettings();
+        });
+
+    $('#chat_timestamps_instruction_enabled')
+        .prop('checked', settings.instruction_enabled)
+        .on('click', (event) => {
+            settings.instruction_enabled = event.target.checked;
             saveSettings();
         });
 

@@ -12,4 +12,5 @@ User: message text
 ## Settings
 
 - `Send timestamps to model`: enables or disables prompt timestamp injection.
+- `Prevent timestamp headers in replies`: tells the model that timestamp lines are metadata and should not be copied into its response.
 - `Recent messages to timestamp`: timestamps only this many newest in-context messages. Use `0` for every in-context message.
